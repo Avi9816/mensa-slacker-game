@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mensa Slacker OS - Stealth Edition</title>
+    <style>
+        /* === CORPORATE OS UI THEME === */
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;700&display=swap');
+
+        * {
+            box-sizing: border-box; margin: 0; padding: 0;
+            font-family: 'Inter', sans-serif;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+        }
+
+        html, body {
+            width: 100%; height: 100%; background-color: #0f172a; color: #f8fafc;
+            overflow: hidden; touch-action: none;
+        }
+
+        #app-wrapper {
+            position: relative; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center; background: #0f172a;
+        }
+
+        #game-container {
+            position: relative; width: 100%; height: 100%;
+            max-width: 100vw; max-height: 100vh;
+            background-color: #94a3b8; overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            width: 100%; height: 100%; object-fit: contain;
+            display: block; background: #94a3b8;
+        }
+
+        /* === UI OVERLAYS === */
+        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+
+        #hud {
+            display: none; flex-wrap: wrap; justify-content: space-between; align-items: flex-start;
+            padding: 12px 15px; background: rgba(15, 23, 42, 0.85);
+            border-bottom: 2px solid #38bdf8; backdrop-filter: blur(5px);
+            font-family: 'Share Tech Mono', monospace; font-size: 14px; color: #e2e8f0; pointer-events: auto;
+        }
+
+        .hud-location { width: 100%; text-align: center; margin-bottom: 8px; font-size: 16px; font-weight: bold; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px; }
+        .hud-top-row { display: flex; width: 100%; justify-content: space-between; margin-bottom: 8px; }
+        .hud-suspicion { display: flex; align-items: center; gap: 8px; color: #fbbf24; width: 100%; font-size: 12px;}
+        progress { accent-color: #ef4444; height: 8px; flex-grow: 1; border-radius: 4px; border: 1px solid #334155; background: #1e293b; }
+        progress::-webkit-progress-bar { background-color: #1e293b; border-radius: 4px; }
+        progress::-webkit-progress-value { background-color: #ef4444; border-radius: 4px; transition: width 0.1s linear;}
+        
+        .hud-target { color: #38bdf8; font-size: 16px; font-weight: bold; }
+        .combo-text { color: #fde047; font-weight: bold; margin-left: 10px; display: none; text-shadow: 0 0 5px #ca8a04; }
+        .combo-text.active { display: inline; animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            pointer-events: auto; text-align: center; padding: 20px; z-index: 200;
+        }
+        .screen.active { display: flex; }
+
+        h1 { font-family: 'Share Tech Mono', monospace; font-size: 36px; color: #38bdf8; margin-bottom: 10px; text-transform: uppercase; text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+        h2 { font-size: 20px; color: #f8fafc; margin-bottom: 20px; font-weight: 400; }
+        p { font-size: 14px; color: #94a3b8; margin-bottom: 30px; line-height: 1.5; max-width: 400px; }
+
+        /* Character Select Styles */
+        .char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; margin: 0 auto; }
+        .char-card { background: rgba(30, 41, 59, 0.8); border: 2px solid #334155; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .char-card:hover, .char-card:active { border-color: #38bdf8; background: rgba(56, 189, 248, 0.1); transform: scale(1.02); }
+        .char-name { font-family: 'Share Tech Mono', monospace; font-size: 18px; color: #38bdf8; margin-bottom: 4px; }
+        .char-title { font-size: 11px; color: #10b981; margin-bottom: 8px; text-transform: uppercase; font-weight: bold; }
+        .char-desc { font-size: 10px; color: #94a3b8; line-height: 1.3; }
+
+        button {
+            padding: 14px 32px; font-size: 16px; font-weight: bold; font-family: 'Share Tech Mono', monospace;
+            background: linear-gradient(135deg, #0ea5e9, #2563eb); color: white; border: none;
+            border-radius: 8px; cursor: pointer; pointer-events: auto; touch-action: manipulation;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        button:active { transform: scale(0.9); box-shadow: 0 2px 5px rgba(37, 99, 235, 0.4); }
+
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+            background: #1e293b; color: #f8fafc; padding: 25px; border-radius: 12px;
+            border: 2px solid #38bdf8; box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 20px rgba(56, 189, 248, 0.2);
+            display: none; pointer-events: auto; width: 90%; max-width: 350px; text-align: center; z-index: 150;
+            opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .modal.active { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+        .modal-title { font-family: 'Share Tech Mono', monospace; font-size: 20px; margin-bottom: 12px; color: #38bdf8; }
+        .modal-buttons { margin-top: 25px; display: flex; justify-content: space-around; gap: 15px; }
+        .modal-buttons button { padding: 12px 0; font-size: 14px; flex: 1; border-radius: 6px; }
+        .btn-yes { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); }
+        .btn-no { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); }
+
+        /* QTE UI */
+        #qte-modal {
+            position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.95); border: 2px solid #f43f5e; border-radius: 12px;
+            padding: 15px; width: 85%; max-width: 320px; text-align: center;
+            display: none; pointer-events: none; z-index: 101; backdrop-filter: blur(5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        #qte-modal.active { display: block; animation: slideDown 0.3s ease-out; }
+        @keyframes slideDown { from { top: 20%; opacity: 0; } to { top: 25%; opacity: 1; } }
+        
+        #qte-bar-container {
+            width: 100%; height: 24px; background: #0f172a; border-radius: 12px;
+            position: relative; overflow: hidden; margin-top: 12px; border: 2px solid #334155;
+        }
+        #qte-target-zone { position: absolute; top: 0; height: 100%; background: #10b981; box-shadow: inset 0 0 10px rgba(255,255,255,0.4); }
+        #qte-cursor {
+            position: absolute; top: -2px; height: 28px; width: 6px;
+            background: #fff; border-radius: 3px; left: 0%; box-shadow: 0 0 8px #fff;
+        }
+
+        .strike-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(239, 68, 68, 0.4); display: none; pointer-events: none; z-index: 100; mix-blend-mode: overlay;}
+        #high-alert-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); pointer-events: none; z-index: 90; transition: box-shadow 0.5s ease; }
+        #high-alert-overlay.active { box-shadow: inset 0 0 80px rgba(239, 68, 68, 0.6); animation: throb 2s infinite alternate; }
+        @keyframes throb { from { box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.4); } to { box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.7); } }
+
+        /* Mobile Controls */
+        #mobile-controls { display: none; position: absolute; bottom: 0; left: 0; width: 100%; height: 180px; pointer-events: none; padding: 20px; z-index: 160; }
+        #joystick-container {
+            position: absolute; bottom: 30px; left: 30px; width: 100px; height: 100px;
+            background: rgba(30, 41, 59, 0.5); border: 2px solid rgba(148, 163, 184, 0.3);
+            border-radius: 50%; pointer-events: auto; backdrop-filter: blur(4px);
+        }
+        #joystick-knob {
+            position: absolute; top: 25px; left: 25px; width: 50px; height: 50px;
+            background: rgba(248, 250, 252, 0.9); border-radius: 50%; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+        #action-btn {
+            position: absolute; bottom: 40px; right: 30px; width: 85px; height: 85px;
+            background: linear-gradient(135deg, #f43f5e, #be123c); border: 3px solid rgba(255,255,255,0.8);
+            border-radius: 50%; color: white; font-weight: bold; font-size: 13px; font-family: 'Share Tech Mono', monospace;
+            display: flex; justify-content: center; align-items: center; pointer-events: auto; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5); text-transform: uppercase; transition: transform 0.1s;
+        }
+        #action-btn:active { transform: scale(0.9); background: linear-gradient(135deg, #be123c, #881337); }
+
+        #scan-box { width: 150px; height: 150px; border: 4px dashed #38bdf8; position: relative; margin: 20px auto; border-radius: 10px; overflow: hidden; }
+        #scan-line { width: 100%; height: 4px; background-color: #38bdf8; box-shadow: 0 0 10px #38bdf8; position: absolute; top: 0; animation: scanAnim 2s infinite ease-in-out alternate; }
+        @keyframes scanAnim { 0% { top: 0%; } 100% { top: 100%; } }
+
+    </style>
+</head>
+<body>
+
+<div id="app-wrapper">
+    <div id="game-container">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+        
+        <div class="ui-layer">
+            <div id="hud">
+                <div class="hud-location">LOC: <span id="loc-display" style="color:#10b981">Dennislingo</span></div>
+                <div class="hud-top-row">
+                    <span>STRIKES: <span id="strikes-display" style="color:#ef4444">0/3</span></span>
+                    <span class="hud-target">SLACK: <span id="score-display">0</span>/100 <span id="combo-display" class="combo-text">2x COMBO</span></span>
+                </div>
+                <div class="hud-suspicion">
+                    SUSPICION <progress id="suspicion-bar" value="0" max="100"></progress>
+                </div>
+            </div>
+
+            <div id="strike-flash" class="strike-flash"></div>
+            <div id="high-alert-overlay"></div>
+
+            <div id="qte-modal">
+                <div style="font-family: 'Share Tech Mono', monospace; color: #38bdf8; font-size:18px;">QUICK SLACK EVENT</div>
+                <div style="font-size:12px; color:#94a3b8; margin-top:5px;">Tap INTERACT in the green zone!</div>
+                <div id="qte-bar-container">
+                    <div id="qte-target-zone"></div>
+                    <div id="qte-cursor"></div>
+                </div>
+            </div>
+
+            <div id="screen-menu" class="screen active">
+                <h1>Mensa OS v2.0</h1><h2>Tactical Slacker Protocol</h2>
+                <p>Evade managers using dynamic line-of-sight! Hide behind servers, filing cabinets, or coworkers. Scroll reels at your Home Base, but minimize quickly!</p>
+                <button id="btn-start">INITIALIZE WORKDAY</button>
+            </div>
+            
+            <div id="screen-facescan" class="screen">
+                <h2>Security</h2><p>Scanning Face...</p>
+                <div id="scan-box"><div id="scan-line"></div></div>
+                <p id="scan-status" style="font-size:12px;">Hold still...</p>
+            </div>
+
+            <div id="screen-char-select" class="screen">
+                <h2>SELECT YOUR PERSONA</h2>
+                <div class="char-grid">
+                    <div class="char-card" onclick="selectCharacter('Avinash')">
+                        <div class="char-name">AVINASH</div>
+                        <div class="char-title">The Speedster</div>
+                        <div class="char-desc">Fast base speed. Gains a 25% speed boost when suspicion is high (>50%).</div>
+                    </div>
+                    <div class="char-card" onclick="selectCharacter('Afroz')">
+                        <div class="char-name">AFROZ</div>
+                        <div class="char-title">The Tech Guru</div>
+                        <div class="char-desc">Home Desk generates points 20% faster. 50% suspicion resistance in IT Dept.</div>
+                    </div>
+                    <div class="char-card" onclick="selectCharacter('Sneha')">
+                        <div class="char-name">SNEHA</div>
+                        <div class="char-title">Social Butterfly</div>
+                        <div class="char-desc">Networking yields 2x points. Standing near coworkers provides 100% stealth cover.</div>
+                    </div>
+                    <div class="char-card" onclick="selectCharacter('Ritu')">
+                        <div class="char-name">RITU</div>
+                        <div class="char-title">Stealth Master</div>
+                        <div class="char-desc">Failed QTEs cause minimal noise (1s). Suspicion decays 2x faster at Home Desk.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="screen-gameover" class="screen">
+                <h1 style="color: #ef4444;">TERMINATED</h1><h2>Security Breach Detected.</h2>
+                <p>Management has logged 3 infractions. Please return your badge.</p>
+                <button id="btn-restart-loss">REBOOT PROTOCOL</button>
+            </div>
+
+            <div id="screen-victory" class="screen">
+                <h1 style="color: #10b981;">WFH APPROVED</h1><h2>Stealth Mastery Achieved.</h2>
+                <p>You have successfully simulated a full workday. Enjoy your couch.</p>
+                <button id="btn-restart-win">PLAY AGAIN</button>
+            </div>
+
+            <div id="interaction-modal" class="modal">
+                <div id="modal-title" class="modal-title">SYSTEM PROMPT</div>
+                <div id="modal-text" style="font-size: 15px; margin-bottom: 10px; color:#cbd5e1;">...</div>
+                <div id="modal-actions" class="modal-buttons"></div>
+            </div>
+
+            <div id="mobile-controls">
+                <div id="joystick-container"><div id="joystick-knob"></div></div>
+                <div id="action-btn">INTERACT</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * MOBILE MENSA SLACKER OS
+ * Dynamic Lighting, Crowd Cover, VFX, Home Base, Personas
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const UI = {
+    hud: document.getElementById('hud'), score: document.getElementById('score-display'),
+    strikes: document.getElementById('strikes-display'), suspicionBar: document.getElementById('suspicion-bar'),
+    combo: document.getElementById('combo-display'), flash: document.getElementById('strike-flash'),
+    highAlert: document.getElementById('high-alert-overlay'), actBtn: document.getElementById('action-btn'),
+    locDisplay: document.getElementById('loc-display'),
+    screens: { MENU: document.getElementById('screen-menu'), FACE_SCAN: document.getElementById('screen-facescan'), CHAR_SELECT: document.getElementById('screen-char-select'), PLAY: null, GAME_OVER: document.getElementById('screen-gameover'), VICTORY: document.getElementById('screen-victory') },
+    modal: document.getElementById('interaction-modal'), modalTitle: document.getElementById('modal-title'), modalText: document.getElementById('modal-text'), modalActions: document.getElementById('modal-actions'),
+    qteModal: document.getElementById('qte-modal'), qteTarget: document.getElementById('qte-target-zone'), qteCursor: document.getElementById('qte-cursor'),
+    scanStatus: document.getElementById('scan-status'), controls: document.getElementById('mobile-controls')
+};
+
+// Global State
+const WIN_SCORE = 100; const MAX_STRIKES = 3;
+let gameState = 'MENU'; // MENU, FACE_SCAN, CHAR_SELECT, PLAY, SLACKING, SLACKING_HOME, DIALOGUE, QTE, CAUGHT, GAME_OVER, VICTORY
+let score = 0, strikes = 0, suspicion = 0, lastTime = 0;
+
+const randomBanter = [
+    "Let's circle back on this later.", "I'm literally drowning in emails.", 
+    "Is it 5 PM yet?", "Just aligning on some synergies.", 
+    "Someone microwave fish again?", "Did you check the Jira board?", 
+    "I think I need my 4th coffee.", "Can we take this offline?",
+    "Per my last email...", "We need to pivot our strategy.",
+    "That's above my pay grade."
+];
+
+// Advanced Mechanics State
+let isHighAlert = false;
+let speedBoostTimer = 0;
+let itBuffTimer = 0;
+let combo = { multiplier: 1, timer: 0, lastZone: null };
+let qteState = { active: false, pos: 0, dir: 1, speed: 140, min: 40, max: 60, zone: null };
+let particles = [];
+
+// Mobile Input
+const joyState = { active: false, id: null, oX: 0, oY: 0, vX: 0, vY: 0, maxR: 35 };
+const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; if((e.key === ' ' || e.key === 'e')) handleInteractionRoute(); });
+window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+const joyZone = document.getElementById('joystick-container'); const joyKnob = document.getElementById('joystick-knob');
+joyZone.addEventListener('touchstart', e => { e.preventDefault(); if(joyState.active) return; const t = e.changedTouches[0]; joyState.active = true; joyState.id = t.identifier; const rect = joyZone.getBoundingClientRect(); joyState.oX = rect.left + rect.width/2; joyState.oY = rect.top + rect.height/2; updateJoy(t.clientX, t.clientY); }, {passive: false});
+joyZone.addEventListener('touchmove', e => { e.preventDefault(); if(!joyState.active) return; for(let i=0;i<e.changedTouches.length;i++) if(e.changedTouches[i].identifier === joyState.id) updateJoy(e.changedTouches[i].clientX, e.changedTouches[i].clientY); }, {passive: false});
+joyZone.addEventListener('touchend', endJoy, {passive: false}); joyZone.addEventListener('touchcancel', endJoy, {passive: false});
+
+function endJoy(e) { 
+    e.preventDefault(); for(let i=0;i<e.changedTouches.length;i++) if(e.changedTouches[i].identifier === joyState.id) { 
+        joyState.active = false; joyState.id = null; joyState.vX = 0; joyState.vY = 0; joyKnob.style.transform = `translate(0px, 0px)`; 
+        if(gameState === 'SLACKING_HOME') minimizePhone(); // Auto-minimize if moving
+        break; 
+    } 
+}
+function updateJoy(cx, cy) { 
+    let dx = cx - joyState.oX, dy = cy - joyState.oY, d = Math.hypot(dx, dy); 
+    if(d > joyState.maxR) { dx = (dx/d)*joyState.maxR; dy = (dy/d)*joyState.maxR; } 
+    joyKnob.style.transform = `translate(${dx}px, ${dy}px)`; joyState.vX = dx/joyState.maxR; joyState.vY = dy/joyState.maxR; 
+    if (gameState === 'SLACKING_HOME' && d > 10) minimizePhone();
+}
+
+UI.actBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInteractionRoute(); }, {passive: false});
+
+function handleInteractionRoute() {
+    if (gameState === 'QTE') resolveQTE();
+    else if (gameState === 'SLACKING_HOME') minimizePhone();
+    else if (gameState === 'PLAY' || gameState === 'DIALOGUE') handleInteraction();
+}
+
+
+// --- Drawing Helpers & VFX Engine ---
+function drawRoundRect(ctx, x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2; if (h < 2 * r) r = h / 2;
+    ctx.beginPath(); ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r); ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath(); ctx.fill();
+}
+
+function drawFastShadow(ctx, x, y, radius, isRect=false, w=0, h=0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    if(isRect) { drawRoundRect(ctx, x+3, y+5, w, h, 4); } 
+    else { ctx.beginPath(); ctx.arc(x+3, y+5, radius, 0, Math.PI*2); ctx.fill(); }
+}
+
+function drawHumanSilhouette(ctx, x, y, radius, color, isMoving, angle, hasShadow=true) {
+    if(hasShadow) drawFastShadow(ctx, x, y, radius+4);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+    ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(0, 0, radius + 4, radius - 2, 0, 0, Math.PI*2); ctx.fill(); // Shoulders
+    ctx.fillStyle = '#fcd5ce'; ctx.beginPath(); ctx.arc(0, -3, radius - 4, 0, Math.PI * 2); ctx.fill(); // Head
+    ctx.fillStyle = color; let armSwing = isMoving ? Math.sin(Date.now() / 150) * 5 : 0;
+    ctx.beginPath(); ctx.ellipse(-radius-2, armSwing, 4, radius, 0, 0, Math.PI*2); ctx.fill(); 
+    ctx.beginPath(); ctx.ellipse(radius+2, -armSwing, 4, radius, 0, 0, Math.PI*2); ctx.fill(); 
+    ctx.restore();
+}
+
+function spawnParticle(x, y, text, color, type='text', life=1.0) {
+    let vx = (Math.random()-0.5)*30; let vy = -30 - Math.random()*20;
+    if(type === 'zzz') { vx = (Math.random()-0.5)*15; vy = -20; color='#f8fafc'; text='z'; }
+    if(type === 'sweat') { vx = (Math.random()-0.5)*10; vy = -10 + Math.random()*20; color='#38bdf8'; text='💧'; life=0.5;}
+    particles.push({x, y, vx, vy, text, color, type, life, maxLife: life, alpha: 1});
+}
+
+function updateDrawParticles(dt, ctx) {
+    for(let i=particles.length-1; i>=0; i--) {
+        let p = particles[i]; p.life -= dt; p.alpha = Math.max(0, p.life/p.maxLife);
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        if(p.type === 'zzz') p.x += Math.sin(p.life*10)*0.5; // drift
+        ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
+        if(p.type === 'text') { ctx.font = 'bold 16px "Share Tech Mono"'; ctx.textAlign = 'center'; ctx.fillText(p.text, p.x, p.y); }
+        else if (p.type === 'zzz') { ctx.font = 'bold 14px Arial'; ctx.fillText(p.text, p.x, p.y); }
+        else if (p.type === 'sweat') { ctx.font = '12px Arial'; ctx.fillText(p.text, p.x, p.y); }
+        else if (p.type === 'alert') { ctx.font = 'bold 24px Arial'; ctx.fillStyle='#ef4444'; ctx.fillText('!', p.x, p.y); }
+        ctx.globalAlpha = 1.0;
+        if(p.life <= 0) particles.splice(i, 1);
+    }
+}
+
+// --- Line of Sight Math ---
+function isLoSBlocked(x1, y1, x2, y2, blockers) {
+    // Raycast approximation using point sampling along the line segment
+    const steps = 12;
+    for(let i=1; i<=steps; i++) {
+        let px = x1 + (x2-x1)*(i/steps); let py = y1 + (y2-y1)*(i/steps);
+        for(let b of blockers) {
+            if (b.bType === 'circle' && Math.hypot(px-b.x, py-b.y) < b.r) return true;
+            if (b.bType === 'rect' && px>b.x && px<b.x+b.w && py>b.y && py<b.y+b.h) return true;
+        }
+    }
+    return false;
+}
+
+// --- Classes ---
+function AABB(b, obj) { return (b.x < obj.x+obj.w && b.x+b.w > obj.x && b.y < obj.y+obj.h && b.y+b.h > obj.y); }
+class Box { constructor(x,y,w,h) { this.x=x; this.y=y; this.w=w; this.h=h; this.bType = 'rect'; } }
+
+class DeptArea extends Box { 
+    constructor(x,y,w,h,name,color) { super(x,y,w,h); this.name = name; this.color = color;} 
+    draw(ctx) {
+        // Draw Rug Base
+        ctx.fillStyle = this.color;
+        drawRoundRect(ctx, this.x, this.y, this.w, this.h, 12);
+
+        // Rug outline
+        ctx.strokeStyle = this.color.replace('0.15', '0.4').replace('0.1)', '0.4)');
+        ctx.lineWidth = 2; ctx.stroke();
+
+        // Label on floor
+        ctx.fillStyle = this.color.replace('0.15', '0.25').replace('0.1)', '0.25)');
+        ctx.font = 'bold 16px "Share Tech Mono"'; ctx.textAlign = 'center';
+        ctx.fillText(this.name.toUpperCase(), this.x + this.w/2, this.y + this.h/2);
+    }
+}
+
+class Obstacle extends Box {
+    constructor(x, y, w, h, type, color, label = "", blocksLoS = true) { super(x, y, w, h); this.type = type; this.color = color; this.label = label; this.blocksLoS = blocksLoS; }
+    draw(ctx) {
+        drawFastShadow(ctx, this.x, this.y, 0, true, this.w, this.h);
+        if (this.type === 'Wall') {
+            ctx.fillStyle = '#475569'; ctx.fillRect(this.x, this.y, this.w, this.h);
+            ctx.fillStyle = '#64748b'; ctx.fillRect(this.x+2, this.y+2, this.w-4, this.h-4);
+        } 
+        else if (this.type === 'Cabinet') {
+            ctx.fillStyle = '#94a3b8'; drawRoundRect(ctx, this.x, this.y, this.w, this.h, 2);
+            ctx.fillStyle = '#cbd5e1'; ctx.fillRect(this.x+5, this.y+5, this.w-10, 5); ctx.fillRect(this.x+5, this.y+15, this.w-10, 5);
+        }
+        else if (this.type === 'Desk') {
+            ctx.fillStyle = this.color; drawRoundRect(ctx, this.x, this.y, this.w, this.h, 6);
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 2; ctx.stroke();
+            const drawStation = (sx, sy, facingDown) => {
+                ctx.save(); ctx.translate(sx, sy); if (!facingDown) ctx.rotate(Math.PI);
+                // Glow & Monitors
+                ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 8;
+                ctx.fillStyle = '#0f172a'; drawRoundRect(ctx, -20, -10, 18, 6, 2); drawRoundRect(ctx, 2, -10, 18, 6, 2); 
+                ctx.shadowBlur = 0; // reset
+                ctx.fillStyle = '#94a3b8'; ctx.fillRect(-12, -4, 2, 4); ctx.fillRect(10, -4, 2, 4); 
+                ctx.fillStyle = '#e2e8f0'; drawRoundRect(ctx, -12, 4, 16, 5, 1); ctx.beginPath(); ctx.arc(8, 6, 2, 0, Math.PI*2); ctx.fill(); // KB/Mouse
+                ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(0, 22, 10, 0, Math.PI*2); ctx.fill(); // Seat
+                drawRoundRect(ctx, -12, 30, 24, 6, 3); drawRoundRect(ctx, -14, 18, 4, 8, 2); drawRoundRect(ctx, 10, 18, 4, 8, 2); 
+                ctx.restore();
+            };
+            let stations = this.w > 100 ? 2 : 1;
+            for(let i=0; i<stations; i++) { let ox = this.x + (this.w / (stations*2)) + (i * (this.w/stations)); drawStation(ox, this.y + 15, false); drawStation(ox, this.y + this.h - 15, true); }
+            if (this.label) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; drawRoundRect(ctx, this.x + this.w/2 - 45, this.y + this.h/2 - 10, 90, 20, 4); ctx.fillStyle = '#0f172a'; ctx.font = 'bold 10px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(this.label, this.x + this.w / 2, this.y + this.h / 2); }
+        }
+    }
+}
+
+class Zone extends Box {
+    constructor(x, y, w, h, title, prompt, points, duration, hasQTE = false, isHome = false, buff = 'None') { super(x, y, w, h); this.title = title; this.prompt = prompt; this.points = points; this.duration = duration; this.hasQTE = hasQTE; this.isHome = isHome; this.buff = buff; this.blocksLoS = false; }
+    draw(ctx) {
+        ctx.fillStyle = this.isHome ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)'; drawRoundRect(ctx, this.x, this.y, this.w, this.h, 8);
+        ctx.strokeStyle = this.isHome ? 'rgba(16, 185, 129, 0.6)' : 'rgba(56, 189, 248, 0.5)'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+        
+        if (this.title === 'Kitchen') {
+            ctx.fillStyle = '#e2e8f0'; drawRoundRect(ctx, this.x, this.y, this.w, 30, 4);
+            ctx.fillStyle = '#94a3b8'; drawRoundRect(ctx, this.x + this.w - 40, this.y, 35, 40, 3); ctx.fillStyle = '#334155'; ctx.fillRect(this.x+this.w-35, this.y+5, 2, 15);
+            ctx.fillStyle = '#334155'; drawRoundRect(ctx, this.x + 20, this.y + 5, 20, 20, 3); ctx.fillStyle = '#cbd5e1'; ctx.fillRect(this.x + 25, this.y + 20, 10, 5); ctx.fillStyle = '#78350f'; ctx.beginPath(); ctx.arc(this.x + 30, this.y + 15, 5, 0, Math.PI*2); ctx.fill(); 
+        } else if (this.title === 'Cooler') {
+            ctx.fillStyle = '#f8fafc'; drawRoundRect(ctx, this.x+25, this.y+25, 30, 30, 4); ctx.fillStyle = '#cbd5e1'; ctx.fillRect(this.x+30, this.y+50, 20, 5); 
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.7)'; ctx.beginPath(); ctx.arc(this.x+40, this.y+40, 12, 0, Math.PI*2); ctx.fill();
+        } else if (this.title === 'TT Table') {
+            ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h/2);
+            ctx.fillStyle = '#059669'; drawRoundRect(ctx, -50, -25, 100, 50, 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(-48, -23, 96, 46); ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(0, 25); ctx.stroke(); 
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(-2, -30, 4, 60); ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.5; for(let i=-28; i<30; i+=3) { ctx.beginPath(); ctx.moveTo(-2, i); ctx.lineTo(2, i); ctx.stroke(); }
+            ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(-30, 0, 5, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#d97706'; ctx.fillRect(-27, -1, 6, 2);
+            ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.arc(30, 10, 5, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#d97706'; ctx.fillRect(25, 9, 6, 2);
+            ctx.restore();
+        }
+        ctx.fillStyle = '#1e293b'; ctx.font = 'bold 11px Inter'; ctx.textAlign = 'center'; ctx.fillText(this.title, this.x + this.w / 2, this.y + this.h - 5);
+        if(this.isHome) { ctx.fillStyle='#10b981'; ctx.font='16px Arial'; ctx.fillText('★', this.x + this.w/2, this.y + this.h/2); }
+    }
+}
+
+class HidingSpot extends Box {
+    constructor(x, y, type) { super(x, y, 50, 50); this.type = type; this.blocksLoS = true; }
+    draw(ctx) { 
+        drawFastShadow(ctx, this.x+25, this.y+25, 20);
+        if (this.type === 'Monstera') {
+            ctx.save(); ctx.translate(this.x+25, this.y+25);
+            ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#451a03'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'rgba(22, 163, 74, 0.95)'; ctx.strokeStyle = '#15803d'; ctx.lineWidth = 1;
+            for(let i=0; i<5; i++) { ctx.rotate(Math.PI*2/5); ctx.beginPath(); ctx.ellipse(0, 16, 8, 18, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
+            ctx.restore();
+        } else if (this.type === 'SnakePlant') {
+            ctx.save(); ctx.translate(this.x+25, this.y+25);
+            ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'rgba(21, 128, 61, 0.95)'; ctx.strokeStyle = '#bef264'; ctx.lineWidth = 2;
+            for(let i=0; i<8; i++) { ctx.rotate(Math.PI*2/8); ctx.beginPath(); ctx.ellipse(0, 12, 4, 22, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
+            ctx.restore();
+        } else if (this.type === 'Server') {
+            ctx.fillStyle = '#1e293b'; drawRoundRect(ctx, this.x+10, this.y+5, 30, 40, 2); ctx.fillStyle = '#0f172a'; ctx.fillRect(this.x+12, this.y+7, 26, 36);
+            for(let i=10; i<40; i+=6) { ctx.fillStyle = '#334155'; ctx.fillRect(this.x+14, this.y+i, 22, 3); if (Math.random() > 0.5 || Date.now()%1000 < 500) { ctx.fillStyle = (i%12===0) ? '#38bdf8' : '#10b981'; ctx.fillRect(this.x+30, this.y+i+0.5, 4, 2); } }
+        }
+    }
+}
+
+class Detail {
+    constructor(x, y, type) { this.x=x; this.y=y; this.type=type; this.angle = Math.random()*Math.PI; }
+    draw(ctx) {
+        ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+        if(this.type === 'Coffee') { ctx.fillStyle='#78350f'; ctx.beginPath(); ctx.ellipse(0,0, 8, 5, 0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#f8fafc'; ctx.beginPath(); ctx.arc(4,2,3,0,Math.PI*2); ctx.fill();}
+        if(this.type === 'Paper') { ctx.fillStyle='#f8fafc'; ctx.fillRect(-4,-5, 8,10); ctx.strokeStyle='#cbd5e1'; ctx.strokeRect(-4,-5,8,10); }
+        if(this.type === 'PostIt') { ctx.fillStyle='#fde047'; ctx.fillRect(-3,-3, 6,6); }
+        ctx.restore();
+    }
+}
+
+class Espresso extends Box {
+    constructor(x, y) { super(x, y, 20, 20); this.active = true; this.blocksLoS = false;}
+    draw(ctx) { if(!this.active) return; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.x+10, this.y+10, 8, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#78350f'; ctx.beginPath(); ctx.arc(this.x+10, this.y+10, 6, 0, Math.PI*2); ctx.fill(); }
+}
+
+class Phone extends Box {
+    constructor(x, y) { super(x, y, 30, 30); this.isRinging = false; this.blocksLoS = false;}
+    draw(ctx) { ctx.fillStyle = '#334155'; drawRoundRect(ctx, this.x+5, this.y+5, 20, 20, 3); ctx.fillStyle = '#94a3b8'; drawRoundRect(ctx, this.x+2, this.y+10, 6, 16, 2); if(this.isRinging) { ctx.fillStyle = '#ef4444'; ctx.font = 'bold 16px Arial'; ctx.fillText('🎵', this.x+15, this.y+5); } }
+    ring() { this.isRinging = true; }
+}
+
+class Player {
+    constructor(x, y) { this.x = x; this.y = y; this.radius = 12; this.baseSpeed = 200; this.color = '#38bdf8'; this.isHidden = false; this.angle = Math.PI/2; this.currentDept = 'Dennislingo'; this.character = 'Avinash'; }
+    getBounds() { return { x: this.x - this.radius, y: this.y - this.radius, w: this.radius * 2, h: this.radius * 2 }; }
+    update(dt, obs) {
+        if (gameState !== 'PLAY' && gameState !== 'QTE') return;
+        let dx = joyState.vX, dy = joyState.vY;
+        if (keys.w || keys.ArrowUp) dy = -1; if (keys.s || keys.ArrowDown) dy = 1; if (keys.a || keys.ArrowLeft) dx = -1; if (keys.d || keys.ArrowRight) dx = 1;
+        if (dx !== 0 || dy !== 0) { let l = Math.hypot(dx, dy); if(l > 1) { dx /= l; dy /= l; } this.angle = Math.atan2(dy, dx) + Math.PI/2; }
+        
+        let spd = this.baseSpeed * (speedBoostTimer > 0 ? 1.5 : 1.0);
+        if (this.character === 'Avinash' && suspicion > 50) spd *= 1.25; // Avinash Speed Boost
+        
+        let mx = dx * spd * dt, my = dy * spd * dt;
+        this.x += mx; if (obs.some(o => AABB(this.getBounds(), o))) this.x -= mx;
+        this.y += my; if (obs.some(o => AABB(this.getBounds(), o))) this.y -= my;
+        this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x)); this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+        
+        if (suspicion > 50 && Math.random() < 0.05) spawnParticle(this.x, this.y-10, '', '', 'sweat');
+    }
+    draw(ctx) {
+        if (this.isHidden) ctx.globalAlpha = 0.4;
+        let c = speedBoostTimer > 0 ? '#fde047' : this.color;
+        let isMoving = (joyState.vX !== 0 || joyState.vY !== 0 || keys.w || keys.a || keys.s || keys.d);
+        drawHumanSilhouette(ctx, this.x, this.y, this.radius, c, isMoving, this.angle);
+        ctx.globalAlpha = 1.0;
+        
+        if (gameState === 'SLACKING_HOME') {
+            ctx.fillStyle = '#1e293b'; drawRoundRect(ctx, this.x-15, this.y-25, 30, 8, 2);
+            ctx.fillStyle = '#10b981'; drawRoundRect(ctx, this.x-15, this.y-25, 30 * (Math.sin(Date.now()/200)*0.5+0.5), 8, 2);
+        }
+    }
+}
+
+class NPC {
+    constructor(x, y, name, color) { this.x = x; this.y = y; this.radius = 12; this.name = name; this.color = color; this.angle = 0; this.r = 12; this.bType='circle'; this.blocksLoS = false; }
+    update(dt) { }
+    draw(ctx) { drawHumanSilhouette(ctx, this.x, this.y, this.radius, this.color, false, this.angle); ctx.fillStyle = '#1e293b'; ctx.font = '11px Inter'; ctx.textAlign = 'center'; ctx.fillText(this.name, this.x, this.y - 20); }
+}
+
+class Coworker extends NPC { 
+    constructor(x, y, dX, dY, name, color, diag) { 
+        super(x, y, name, color); this.dX = dX; this.dY = dY; this.diag = diag; this.talked = false; 
+        this.state = 'WORKING'; this.timer = Math.random()*5; this.tX = dX; this.tY = dY; this.blocksLoS = true; // Coworkers are cover!
+    }
+    update(dt) {
+        this.timer -= dt;
+        if(this.state === 'WORKING') {
+            this.angle = Math.PI; // Face up towards desk
+            if(this.timer <= 0) { this.state = 'WANDERING'; this.tX = 100 + Math.random()*800; this.tY = 100 + Math.random()*500; this.timer = 5 + Math.random()*10; }
+        } else if (this.state === 'WANDERING') {
+            let dx = this.tX - this.x, dy = this.tY - this.y; let dist = Math.hypot(dx, dy);
+            if(dist < 5 || this.timer <= 0) { this.state = 'WORKING'; this.tX = this.dX; this.tY = this.dY; this.timer = 10 + Math.random()*20; }
+            else { this.angle = Math.atan2(dy, dx) + Math.PI/2; this.x += (dx/dist)*60*dt; this.y += (dy/dist)*60*dt; }
+        }
+    }
+    draw(ctx) {
+        let isMoving = this.state === 'WANDERING' && Math.hypot(this.tX-this.x, this.tY-this.y)>5;
+        drawHumanSilhouette(ctx, this.x, this.y, this.radius, this.color, isMoving, this.angle);
+    }
+}
+
+class DangerNPC extends NPC {
+    constructor(x, y, name, path, speed) {
+        super(x, y, name, '#ef4444'); this.path = path; this.pIdx = 0; this.baseSpeed = speed;
+        this.baseRad = 220; this.baseAng = Math.PI / 1.7; this.alertTimer = 0; this.distractTarget = null; this.wasSeeing = false;
+    }
+    update(dt) {
+        if (!['PLAY','SLACKING','SLACKING_HOME','QTE'].includes(gameState)) return;
+        let spd = this.baseSpeed * (isHighAlert ? 1.3 : 1.0); if(this.alertTimer > 0) { this.alertTimer -= dt; spd *= 1.2; } 
+        
+        let tX, tY;
+        if (this.distractTarget && this.distractTarget.isRinging) {
+            tX = this.distractTarget.x + 15; tY = this.distractTarget.y + 15;
+            if (Math.hypot(tX - this.x, tY - this.y) < 20) { this.distractTarget.isRinging = false; this.distractTarget = null; }
+        } else {
+            let t = this.path[this.pIdx]; tX = t.x; tY = t.y;
+            if (Math.hypot(tX - this.x, tY - this.y) < 5) this.pIdx = (this.pIdx + 1) % this.path.length;
+        }
+        let moveAngle = Math.atan2(tY - this.y, tX - this.x); this.angle = moveAngle + Math.PI/2; 
+        this.x += Math.cos(moveAngle) * spd * dt; this.y += Math.sin(moveAngle) * spd * dt;
+    }
+    draw(ctx) {
+        super.draw(ctx);
+        const isSeeing = this.checkVision(player);
+        if(isSeeing && !this.wasSeeing) { spawnParticle(this.x, this.y-25, '', '', 'alert'); this.wasSeeing = true; }
+        if(!isSeeing) this.wasSeeing = false;
+
+        let rad = this.baseRad * (isHighAlert ? 1.2 : 1.0) * (this.alertTimer > 0 ? 1.5 : 1.0);
+        let ang = this.baseAng * (isHighAlert ? 1.2 : 1.0) * (this.alertTimer > 0 ? 1.5 : 1.0);
+        let viewAngle = this.angle - Math.PI/2; 
+        
+        let grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, rad);
+        if(isSeeing) { grad.addColorStop(0, 'rgba(239, 68, 68, 0.4)'); grad.addColorStop(1, 'rgba(239, 68, 68, 0)'); }
+        else if(this.alertTimer>0) { grad.addColorStop(0, 'rgba(245, 158, 11, 0.4)'); grad.addColorStop(1, 'rgba(245, 158, 11, 0)'); }
+        else { grad.addColorStop(0, 'rgba(56, 189, 248, 0.25)'); grad.addColorStop(1, 'rgba(56, 189, 248, 0)'); }
+
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.arc(this.x, this.y, rad, viewAngle - ang/2, viewAngle + ang/2); ctx.lineTo(this.x, this.y); ctx.fill();
+
+        // IT Buff: Reveal Patrol Paths
+        if (itBuffTimer > 0) {
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.moveTo(this.path[0].x, this.path[0].y);
+            for(let i=1; i<this.path.length; i++) ctx.lineTo(this.path[i].x, this.path[i].y);
+            ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+        }
+    }
+    checkVision(p) {
+        if (p.isHidden) return false;
+        // Collect all objects that block Line of Sight (Walls, Servers, Cabinets, Coworkers)
+        let blockers = obstacles.filter(o => o.blocksLoS).concat(hides).concat(npcs.filter(n=>n.blocksLoS));
+        if(isLoSBlocked(this.x, this.y, p.x, p.y, blockers)) return false; // CROWD COVER WORKS!
+
+        let rad = this.baseRad * (isHighAlert ? 1.2 : 1.0) * (this.alertTimer > 0 ? 1.5 : 1.0);
+        let ang = this.baseAng * (isHighAlert ? 1.2 : 1.0) * (this.alertTimer > 0 ? 1.5 : 1.0);
+        let dx = p.x - this.x, dy = p.y - this.y;
+        if (Math.hypot(dx, dy) > rad) return false;
+        let viewAngle = this.angle - Math.PI/2;
+        let diff = Math.abs(Math.atan2(dy, dx) - viewAngle); if (diff > Math.PI) diff = 2 * Math.PI - diff;
+        return diff < ang / 2;
+    }
+}
+
+// --- Init ---
+let player, obstacles=[], zones=[], npcs=[], items=[], hides=[], phones=[], details=[], depts=[];
+
+function applyZoneReward(zone) {
+    if(combo.timer>0 && combo.lastZone !== zone.title) combo.multiplier = Math.min(3, combo.multiplier+1); else if(combo.timer<=0) combo.multiplier = 1;
+    combo.timer = 15; combo.lastZone = zone.title;
+    let pts = zone.points * combo.multiplier; 
+    
+    // Sneha Networking Buff
+    let isNetworking = ['Myfitness Collab', 'Villain Sync', 'Botanic Gossip', 'Karagiri Standup', 'HR Chat', 'IT Request'].includes(zone.title);
+    if (player.character === 'Sneha' && isNetworking) pts *= 2;
+
+    score += pts;
+    spawnParticle(player.x, player.y-20, `+${pts} SLACK`, '#10b981');
+    
+    if(zone.buff === 'HR') { suspicion = Math.max(0, suspicion - 40); spawnParticle(player.x, player.y-40, '-40 SUSPICION', '#38bdf8'); }
+    else if(zone.buff === 'IT') { itBuffTimer = 15; spawnParticle(player.x, player.y-40, 'PATHS REVEALED', '#a855f7'); }
+}
+
+function initLevel() {
+    player = new Player(80, 620); player.currentDept = 'Dennislingo';
+    obstacles=[]; zones=[]; npcs=[]; items=[]; hides=[]; phones=[]; details=[]; particles=[]; depts=[];
+    isHighAlert = false; speedBoostTimer = 0; itBuffTimer = 0; combo = { multiplier: 1, timer: 0, lastZone: null }; UI.highAlert.classList.remove('active');
+
+    const mf = '#0ea5e9'; const d = '#8b5cf6'; const bh = '#10b981'; const ka = '#f43f5e'; const hr = '#ec4899'; const it = '#06b6d4';
+    
+    // Outer Boundaries
+    obstacles.push(new Obstacle(0, 550, 150, 20, 'Wall', ''));
+    
+    // Department Obstacles
+    obstacles.push(new Obstacle(180, 80, 160, 100, 'Desk', mf, 'Myfitness'));
+    obstacles.push(new Obstacle(420, 80, 160, 100, 'Desk', d, 'Villain'));
+    obstacles.push(new Obstacle(180, 260, 160, 100, 'Desk', bh, 'Botanichearth'));
+    obstacles.push(new Obstacle(420, 260, 160, 100, 'Desk', ka, 'Karagiri'));
+    obstacles.push(new Obstacle(180, 440, 160, 100, 'Desk', '#f59e0b', 'Dennislingo'));
+    obstacles.push(new Obstacle(420, 440, 160, 100, 'Desk', hr, 'HR'));
+    obstacles.push(new Obstacle(700, 260, 160, 180, 'Desk', it, 'IT')); 
+    obstacles.push(new Obstacle(370, 400, 40, 80, 'Cabinet', '')); // Cover
+
+    // Department Zones (Rugs/Carpets mapping)
+    depts.push(new DeptArea(160, 60, 200, 140, 'Myfitness', 'rgba(14, 165, 233, 0.15)'));
+    depts.push(new DeptArea(400, 60, 200, 140, 'Villain', 'rgba(139, 92, 246, 0.15)'));
+    depts.push(new DeptArea(160, 240, 200, 140, 'Botanichearth', 'rgba(16, 185, 129, 0.15)'));
+    depts.push(new DeptArea(400, 240, 200, 140, 'Karagiri', 'rgba(244, 63, 94, 0.15)'));
+    depts.push(new DeptArea(160, 420, 200, 140, 'Dennislingo', 'rgba(245, 158, 11, 0.1)'));
+    depts.push(new DeptArea(400, 420, 200, 140, 'HR', 'rgba(236, 72, 153, 0.15)'));
+    depts.push(new DeptArea(680, 240, 200, 240, 'IT', 'rgba(6, 182, 212, 0.15)'));
+
+    hides.push(new HidingSpot(80, 40, 'Monstera')); hides.push(new HidingSpot(620, 220, 'SnakePlant')); hides.push(new HidingSpot(800, 510, 'Server'));
+    items.push(new Espresso(300, 150)); items.push(new Espresso(520, 450));
+    phones.push(new Phone(380, 150));
+    
+    for(let i=0;i<5;i++) details.push(new Detail(200+Math.random()*600, 100+Math.random()*400, 'Paper'));
+    details.push(new Detail(820, 100, 'Coffee')); details.push(new Detail(250, 420, 'PostIt'));
+
+    // The Slacking & Networking Zones
+    zones.push(new Zone(800, 50, 150, 120, 'Kitchen', 'Start QTE Slacking?', 25, 0, true));
+    zones.push(new Zone(430, 600, 160, 80, 'TT Table', 'Play TT QTE Minigame?', 30, 0, true));
+    zones.push(new Zone(180, 560, 160, 60, 'Home Desk', 'Sit down and Scroll Reels?', 0, 0, false, true));
+    
+    // Networking Zones
+    zones.push(new Zone(200, 190, 120, 40, 'Myfitness Collab', 'Align on Synergy?', 15, 3000, false, false, 'None'));
+    zones.push(new Zone(440, 190, 120, 40, 'Villain Sync', 'Review Meme Assets?', 20, 3500, true, false, 'None'));
+    zones.push(new Zone(200, 370, 120, 40, 'Botanic Gossip', 'Discuss Weekend Plans?', 15, 3000, false, false, 'None'));
+    zones.push(new Zone(440, 370, 120, 40, 'Karagiri Standup', 'Complain about Jira?', 20, 3500, true, false, 'None'));
+    zones.push(new Zone(440, 550, 120, 40, 'HR Chat', 'Gossip with HR (-Suspicion)?', 15, 3000, false, false, 'HR'));
+    zones.push(new Zone(720, 450, 120, 50, 'IT Request', 'Chat with IT (Reveal Paths)?', 25, 4000, true, false, 'IT'));
+
+    npcs.push(new Coworker(240, 140, 240, 140, 'Sneha', '#14b8a6', 'Use the phone to distract Prem!'));
+    npcs.push(new Coworker(490, 140, 490, 140, 'Rahul', '#14b8a6', 'Coworkers block line of sight. Walk behind me!'));
+    npcs.push(new Coworker(740, 340, 740, 340, 'Afroz', '#14b8a6', 'Espresso gives you wings...'));
+    npcs.push(new Coworker(490, 440, 490, 440, 'Ritu', '#14b8a6', 'Scroll reels at your Home Base, but be ready to minimize!'));
+
+    npcs.push(new DangerNPC(380, 50, 'Prem', [{x:380,y:50},{x:900,y:50},{x:900,y:550},{x:380,y:550}], 110));
+    npcs.push(new DangerNPC(180, 320, 'Sandhya', [{x:180,y:320},{x:400,y:320},{x:400,y:600},{x:650,y:600},{x:650,y:320}], 75));
+    npcs.push(new DangerNPC(650, 50, 'Ramya', [{x:650,y:50},{x:650,y:550}], 80));
+}
+
+// --- UI & State Logic ---
+function setScreen(s) {
+    Object.values(UI.screens).forEach(sc => { if(sc) sc.classList.remove('active'); }); if(UI.screens[s]) UI.screens[s].classList.add('active');
+    if (['PLAY','SLACKING','SLACKING_HOME','DIALOGUE','QTE'].includes(s)) { UI.hud.style.display = 'flex'; UI.controls.style.display = 'block'; }
+    else { UI.hud.style.display = 'none'; UI.controls.style.display = 'none'; closeModal(); UI.qteModal.classList.remove('active'); qteState.active = false; }
+    gameState = s;
+}
+
+function updateHUD() {
+    UI.score.innerText = Math.floor(score); UI.strikes.innerText = `${strikes}/${MAX_STRIKES}`; UI.suspicionBar.value = suspicion;
+    if(combo.timer > 0 && combo.multiplier > 1) { UI.combo.innerText = `${combo.multiplier}x COMBO (${Math.ceil(combo.timer)}s)`; UI.combo.classList.add('active'); }
+    else UI.combo.classList.remove('active');
+    
+    if(player && player.currentDept) {
+        if(player.currentDept !== 'Dennislingo' && player.currentDept !== 'Hallway') { UI.locDisplay.innerText = player.currentDept + " [TRESPASSING]"; UI.locDisplay.style.color = '#ef4444'; }
+        else { UI.locDisplay.innerText = player.currentDept; UI.locDisplay.style.color = '#10b981'; }
+    }
+
+    if(gameState === 'SLACKING_HOME') { UI.actBtn.innerText = "MINIMIZE"; UI.actBtn.style.background = 'linear-gradient(135deg, #eab308, #ca8a04)'; }
+    else { UI.actBtn.innerText = "INTERACT"; UI.actBtn.style.background = 'linear-gradient(135deg, #f43f5e, #be123c)'; }
+}
+
+function showModal(title, text, cbYes, cbNo, isDiag=false) {
+    UI.modalTitle.innerText = title; UI.modalText.innerText = text; UI.modalActions.innerHTML = '';
+    const bY = document.createElement('button'); bY.className = 'btn-yes'; bY.innerText = isDiag?'ACKNOWLEDGE':'EXECUTE'; bY.onclick = () => { closeModal(); if(cbYes) cbYes(); }; UI.modalActions.append(bY);
+    if(!isDiag) { const bN = document.createElement('button'); bN.className = 'btn-no'; bN.innerText = 'ABORT'; bN.onclick = () => { closeModal(); if(cbNo) cbNo(); }; UI.modalActions.append(bN); }
+    UI.modal.classList.add('active'); gameState = 'DIALOGUE'; UI.controls.style.display = 'none';
+}
+function closeModal() { UI.modal.classList.remove('active'); if(gameState==='DIALOGUE') { gameState='PLAY'; UI.controls.style.display='block'; } }
+
+function minimizePhone() {
+    gameState = 'PLAY'; spawnParticle(player.x, player.y-20, 'Minimized!', '#94a3b8'); updateHUD();
+}
+
+function handleInteraction() {
+    if (gameState === 'DIALOGUE') { const btn = UI.modalActions.querySelector('.btn-no') || UI.modalActions.querySelector('button'); if(btn) btn.click(); return; }
+    if (gameState !== 'PLAY') return; 
+    const b = player.getBounds();
+
+    for(let p of phones) if(!p.isRinging && AABB(b, p)) { p.ring(); let prem = npcs.find(n=>n.name==='Prem'); if(prem) prem.distractTarget = p; return; }
+    
+    for (let z of zones) {
+        if (AABB(b, z)) {
+            if (z.isHome) {
+                gameState = 'SLACKING_HOME'; player.x = z.x + z.w/2; player.y = z.y + 20; player.angle = Math.PI; 
+                spawnParticle(player.x, player.y-20, 'Scrolling Reels...', '#38bdf8'); updateHUD();
+                return;
+            }
+            showModal(z.title, z.prompt, () => {
+                if(z.hasQTE) {
+                    gameState = 'QTE'; qteState.active = true; qteState.zone = z; qteState.pos = 0; qteState.dir = 1;
+                    qteState.min = 10 + Math.random()*50; qteState.max = qteState.min + 20;
+                    UI.qteTarget.style.left = qteState.min+'%'; UI.qteTarget.style.width = '20%'; UI.qteModal.classList.add('active'); UI.controls.style.display = 'block';
+                } else {
+                    gameState = 'SLACKING'; player.isSlacking = true; player.slackTimer = 0; player.slackDur = z.duration; player.currentZone = z;
+                }
+            }, null); return;
+        }
+    }
+    for (let n of npcs) if (n instanceof Coworker && Math.hypot(player.x-n.x, player.y-n.y)<50) { 
+        let diagText = n.talked ? randomBanter[Math.floor(Math.random()*randomBanter.length)] : n.diag;
+        showModal(n.name, diagText, () => { if(!n.talked) { score+=5; n.talked=true; spawnParticle(player.x, player.y-20, '+5 NETWORKING', '#10b981'); updateHUD(); } }, null, true); 
+        return; 
+    }
+}
+
+function resolveQTE() {
+    UI.qteModal.classList.remove('active'); qteState.active = false;
+    if(qteState.pos >= qteState.min && qteState.pos <= qteState.max) {
+        applyZoneReward(qteState.zone);
+    } else {
+        spawnParticle(player.x, player.y-20, 'FAIL!', '#ef4444');
+        let near = null, mD = Infinity; npcs.forEach(n => { if(n instanceof DangerNPC){ let d=Math.hypot(n.x-player.x, n.y-player.y); if(d<mD){ mD=d; near=n; } }});
+        if(near) near.alertTimer = (player.character === 'Ritu') ? 1.0 : 3.0; // Ritu Stealth Buff
+    }
+    gameState = 'PLAY';
+}
+
+function catchPlayer() {
+    UI.qteModal.classList.remove('active'); qteState.active = false;
+    gameState = 'CAUGHT'; player.isSlacking = false; suspicion = 0; strikes++; updateHUD(); UI.flash.style.display = 'block'; setTimeout(() => UI.flash.style.display = 'none', 300);
+    if (strikes >= MAX_STRIKES) setTimeout(() => setScreen('GAME_OVER'), 500); else showModal('BREACH DETECTED!', 'Return to your workstation immediately.', () => { player.x=80; player.y=620; }, null, true);
+}
+
+function update(dt) {
+    if (!['PLAY','SLACKING','SLACKING_HOME','QTE'].includes(gameState)) return;
+
+    let wantsHighAlert = (score > 75 || suspicion > 50);
+    if(wantsHighAlert !== isHighAlert) { isHighAlert = wantsHighAlert; if(isHighAlert) UI.highAlert.classList.add('active'); else UI.highAlert.classList.remove('active'); }
+
+    if(combo.timer>0) combo.timer-=dt; if(speedBoostTimer>0) speedBoostTimer-=dt; if(itBuffTimer>0) itBuffTimer-=dt;
+    
+    items.forEach(i => { if(i.active && AABB(player.getBounds(), i)) { i.active = false; speedBoostTimer = 3.0; spawnParticle(player.x, player.y-20, 'CAFFEINE BOOST!', '#fde047');} });
+    
+    // Hiding Logic
+    let nearCoworker = npcs.some(n => n instanceof Coworker && Math.hypot(player.x-n.x, player.y-n.y) < 60);
+    player.isHidden = hides.some(h => AABB(player.getBounds(), h));
+    if (player.character === 'Sneha' && nearCoworker) player.isHidden = true; // Sneha Crowd Cover Buff
+
+    if (player.isHidden && !(player.character === 'Sneha' && nearCoworker)) suspicion += 8 * dt; // Anti-camp (doesn't apply to Sneha's crowd cover)
+
+    player.update(dt, obstacles);
+    
+    // Check Department Location
+    let inDept = 'Hallway';
+    for(let d of depts) { if(player.x > d.x && player.x < d.x+d.w && player.y > d.y && player.y < d.y+d.h) { inDept = d.name; break; } }
+    player.currentDept = inDept;
+
+    if(gameState === 'QTE' && qteState.active) {
+        qteState.pos += qteState.dir * qteState.speed * dt;
+        if(qteState.pos > 100) { qteState.pos = 100; qteState.dir = -1; } if(qteState.pos < 0) { qteState.pos = 0; qteState.dir = 1; }
+        UI.qteCursor.style.left = qteState.pos + '%';
+    }
+
+    let seen = false; npcs.forEach(n => { n.update(dt); if(n instanceof DangerNPC && n.checkVision(player)) seen = true; });
+
+    if (gameState === 'SLACKING' && player.isSlacking) {
+        player.slackTimer += dt * 1000;
+        let pts = (player.currentZone.points / (player.currentZone.duration/1000)) * (combo.timer>0?combo.multiplier:1);
+        score += pts * dt; if(Math.random()<0.05) spawnParticle(player.x, player.y-15, '', '', 'zzz');
+        if (player.slackTimer >= player.slackDur) {
+            applyZoneReward(player.currentZone);
+            player.isSlacking = false; gameState = 'PLAY';
+            spawnParticle(player.x, player.y-20, 'Task Avoided!', '#10b981');
+        }
+    }
+    
+    if (gameState === 'SLACKING_HOME') {
+        let homePts = 4 * dt;
+        if (player.character === 'Afroz') homePts *= 1.2; // Afroz Tech Buff
+        score += homePts; 
+        if(Math.random()<0.08) spawnParticle(player.x, player.y-15, '', '', 'zzz');
+        
+        // Auto-minimize when pressing any movement key on Keyboard
+        if (keys.w || keys.a || keys.s || keys.d || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight) {
+            minimizePhone();
+        }
+    }
+
+    if(seen) { 
+        let susMult = (player.currentDept !== 'Dennislingo' && player.currentDept !== 'Hallway') ? 2.0 : 1.0;
+        if (player.character === 'Afroz' && player.currentDept === 'IT') susMult *= 0.5; // Afroz IT Immunity
+        suspicion += 85 * susMult * dt; 
+        if(suspicion >= 100) catchPlayer(); 
+    } else if(suspicion > 0 && !player.isHidden) {
+        let decay = 20;
+        if (player.character === 'Ritu' && gameState === 'SLACKING_HOME') decay = 40; // Ritu Home Desk Buff
+        suspicion = Math.max(0, suspicion - decay * dt);
+    }
+    
+    updateHUD(); if (score >= WIN_SCORE && !['CAUGHT','GAME_OVER','VICTORY'].includes(gameState)) setScreen('VICTORY');
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+    
+    // Realistic Carpet Tiles
+    for(let x=0; x<canvas.width; x+=40) {
+        for(let y=0; y<canvas.height; y+=40) {
+            // Alternating tile colors for carpet texture
+            ctx.fillStyle = ((Math.floor(x/40) + Math.floor(y/40)) % 2 === 0) ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)';
+            ctx.fillRect(x, y, 40, 40);
+            // Subtle speckles for fabric realism
+            ctx.fillStyle = 'rgba(0,0,0,0.04)';
+            ctx.fillRect(x+10, y+10, 2, 2);
+            ctx.fillRect(x+25, y+25, 2, 2);
+            ctx.fillRect(x+30, y+15, 2, 2);
+        }
+    }
+    
+    depts.forEach(d=>d.draw(ctx)); // Draw Department Rugs
+    details.forEach(d=>d.draw(ctx)); zones.forEach(z=>z.draw(ctx)); obstacles.forEach(o=>o.draw(ctx)); hides.forEach(h=>h.draw(ctx));
+    items.forEach(i=>i.draw(ctx)); phones.forEach(p=>p.draw(ctx)); npcs.forEach(n=>n.draw(ctx));
+    if (player) player.draw(ctx);
+    
+    updateDrawParticles((Date.now() - lastTime)/1000, ctx); // Draw VFX on top
+
+    if (gameState === 'PLAY') {
+        const b = player.getBounds();
+        let near = zones.some(z=>AABB(b,z)) || npcs.some(n=>n instanceof Coworker && Math.hypot(player.x-n.x,player.y-n.y)<50) || phones.some(p=>!p.isRinging && AABB(b,p));
+        if (near) { ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 20px "Share Tech Mono"'; ctx.textAlign = 'center'; ctx.fillText("TAP INTERACT", player.x, player.y - 35); }
+        if (player.isHidden) { ctx.fillStyle = '#fbbf24'; ctx.font = 'bold 16px "Share Tech Mono"'; ctx.textAlign = 'center'; ctx.fillText("HIDDEN", player.x, player.y + 35); }
+    }
+}
+
+function gameLoop(ts) { let dt = (ts - lastTime) / 1000; lastTime = ts; if (dt > 0.1) dt = 0.1; update(dt); draw(); requestAnimationFrame(gameLoop); }
+
+function selectCharacter(name) {
+    player.character = name;
+    if(name === 'Avinash') { player.baseSpeed = 230; player.color = '#38bdf8'; }
+    else if(name === 'Afroz') { player.baseSpeed = 200; player.color = '#a855f7'; }
+    else if(name === 'Sneha') { player.baseSpeed = 200; player.color = '#f43f5e'; }
+    else if(name === 'Ritu') { player.baseSpeed = 200; player.color = '#10b981'; }
+
+    // Remove the selected character from the map so they don't meet themselves
+    npcs = npcs.filter(n => !(n instanceof Coworker && n.name === name));
+
+    setScreen('PLAY');
+}
+
+document.getElementById('btn-start').onclick = () => { score=0; strikes=0; suspicion=0; updateHUD(); initLevel(); setScreen('FACE_SCAN'); setTimeout(() => { UI.scanStatus.innerText = "Authorized"; UI.scanStatus.style.color = "#10b981"; setTimeout(() => setScreen('CHAR_SELECT'), 1000); }, 1500); };
+document.getElementById('btn-restart-loss').onclick = () => setScreen('MENU'); document.getElementById('btn-restart-win').onclick = () => setScreen('MENU');
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
