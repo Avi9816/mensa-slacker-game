@@ -3,7 +3,7 @@
 Welcome to **Mensa Slacker OS**, a stealth-action corporate survival game where the objective isn't to climb the corporate ladder, but to slack off as much as humanly possible without getting caught!
 
 🎮 **[Play the Game Live Here!][(https://avi9816.github.io/mensa-slacker-game/)]** 
-*(Note: Replace the link above with your actual GitHub Pages URL)*
+
 
 ## 📝 About the Game
 You play as an employee at Mensa Brand Technologies. Your ultimate goal? Secure permanent Work From Home (WFH) by proving you can successfully waste time in the office without management noticing. Accumulate **100 Slack Points** to win, but beware: getting caught by the patrolling managers 3 times means you're fired!
